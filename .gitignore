@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.env
+.env.*
+!.env.example
+
+# local dev fallback datastore (no real DB configured)
+/data/
+
+# editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
+npm-debug.log*
