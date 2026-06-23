@@ -22,6 +22,11 @@ let ready = null
 function init() {
   if (ready) return ready
   ready = (async () => {
+    // Serverless filesystems are read-only — the local JSON fallback can't persist
+    // there. Fail loudly with an actionable message instead of a cryptic write error.
+    if (!useNeon && process.env.VERCEL) {
+      throw Object.assign(new Error('DATABASE_URL is required in production.'), { code: 'NO_DB' })
+    }
     if (useNeon) {
       await sql`
         CREATE TABLE IF NOT EXISTS reports (

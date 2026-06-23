@@ -95,6 +95,11 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'GET, POST, OPTIONS')
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (err) {
+    if (err && err.code === 'NO_DB') {
+      return res
+        .status(503)
+        .json({ error: 'Community database not configured yet — set DATABASE_URL.' })
+    }
     console.error('[reports] error', err)
     return res.status(500).json({ error: 'Internal error' })
   }
