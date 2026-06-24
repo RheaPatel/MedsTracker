@@ -22,33 +22,32 @@ function runOutInfo(med) {
   const runOut = addDays(med.lastFillDate, Number(med.daysSupply))
   const left = daysUntil(runOut)
   const lead = Number(med.alertLeadDays) || 10
-  let tone = 'good'
-  if (left <= 0) tone = 'bad'
-  else if (left <= lead) tone = 'warn'
+  let tone = 'in'
+  if (left <= 0) tone = 'out'
+  else if (left <= lead) tone = 'expect'
   return { runOut, left, lead, tone }
 }
 
-export default function MyMedsView({ onMedsChange }) {
+const TONE_COLOR = { in: 'var(--in)', expect: 'var(--expect)', out: 'var(--out)' }
+
+export default function MyMedsView({ onMedsChange, onFind }) {
   const [meds, setMeds] = useState(() => getMeds())
-  const [form, setForm] = useState(null) // null = closed; object = add/edit
+  const [form, setForm] = useState(null)
 
   function refresh() {
     setMeds(getMeds())
     onMedsChange?.()
   }
-
   function save() {
     if (!form.medName?.trim()) return
     upsertMed(form)
     setForm(null)
     refresh()
   }
-
   function logRefill(med) {
     upsertMed({ ...med, lastFillDate: todayISODate() })
     refresh()
   }
-
   function remove(id) {
     deleteMed(id)
     refresh()
@@ -56,25 +55,29 @@ export default function MyMedsView({ onMedsChange }) {
 
   return (
     <div>
-      <h1 className="view-title">My meds</h1>
-      <p className="view-intro">
-        Track your run-out date so you start the refill hunt <strong>early</strong> — before you’re
-        at zero. The whole game during a shortage is lead time.
-      </p>
+      <div className="page-head">
+        <div className="page-kicker">Your supply</div>
+        <h1 className="page-title">My meds</h1>
+        <p className="page-intro">
+          Track your run-out date so you start the refill hunt <em>early</em> — before you’re at
+          zero. During a shortage, lead time is the whole game.
+        </p>
+      </div>
 
-      {meds.length === 0 && !form && (
-        <div className="empty">
-          <div className="empty-emoji">💊</div>
-          <p>Add the medication you’re tracking and we’ll warn you before it runs out.</p>
-        </div>
-      )}
+      <div className="pad">
+        {meds.length === 0 && !form && (
+          <div className="empty">
+            <div className="empty-emoji">💊</div>
+            <div className="empty-title">Nothing tracked yet</div>
+            <p>Add the medication you’re tracking and we’ll warn you before it runs out.</p>
+          </div>
+        )}
 
-      <div className="section-gap">
         {meds.map((med) => {
           const r = runOutInfo(med)
           return (
-            <div key={med.id} className="card">
-              <div className="card-row">
+            <div key={med.id} className="card section-gap">
+              <div className="spread">
                 <div className="card-title">
                   {med.medName} {med.dose ? `· ${med.dose}` : ''}
                 </div>
@@ -84,28 +87,29 @@ export default function MyMedsView({ onMedsChange }) {
 
               {r ? (
                 <>
-                  <div className="flex" style={{ marginTop: 10 }}>
-                    <span className={`pill tone-${r.tone}`}>
+                  <div className="countdown section-gap" style={{ color: TONE_COLOR[r.tone] }}>
+                    <span className="num">{r.left <= 0 ? Math.abs(r.left) : r.left}</span>
+                    <span className="unit">
                       {r.left <= 0
-                        ? `Out for ${Math.abs(r.left)} day${Math.abs(r.left) === 1 ? '' : 's'}`
-                        : `${r.left} day${r.left === 1 ? '' : 's'} left`}
+                        ? `day${Math.abs(r.left) === 1 ? '' : 's'} overdue`
+                        : `day${r.left === 1 ? '' : 's'} left`}
                     </span>
-                    <span className="meta">runs out {formatDate(r.runOut)}</span>
                   </div>
+                  <div className="meta" style={{ marginTop: 4 }}>runs out {formatDate(r.runOut)}</div>
                   {r.left <= r.lead && (
-                    <div className="banner banner-warn" style={{ marginTop: 10 }}>
-                      ⏰ Start the refill hunt now — send the script, call ahead, and check the
-                      community map so you’re not scrambling at zero.
+                    <div className="banner banner-warn section-gap">
+                      ⏰ Start the refill hunt now — send the script, call ahead.{' '}
+                      <button className="link-btn" onClick={onFind}>
+                        Find it nearby →
+                      </button>
                     </div>
                   )}
                 </>
               ) : (
-                <div className="meta" style={{ marginTop: 8 }}>
-                  Add a fill date + days supply to track run-out.
-                </div>
+                <div className="meta section-gap">Add a fill date + days supply to track run-out.</div>
               )}
 
-              <div className="flex" style={{ marginTop: 12 }}>
+              <div className="flex section-gap">
                 <button className="btn btn-sm" onClick={() => logRefill(med)}>
                   Log refill today
                 </button>
@@ -119,70 +123,67 @@ export default function MyMedsView({ onMedsChange }) {
             </div>
           )
         })}
-      </div>
 
-      {form ? (
-        <div className="card section-gap">
-          <div className="card-title">{form.id ? 'Edit medication' : 'Add a medication'}</div>
-          <MedFields
-            value={form}
-            onChange={(m) => setForm((f) => ({ ...f, ...m }))}
-          />
-          <div className="row-2">
-            <div className="field">
-              <label>Last fill date</label>
-              <input
-                className="input"
-                type="date"
-                value={form.lastFillDate}
-                onChange={(e) => setForm((f) => ({ ...f, lastFillDate: e.target.value }))}
-              />
+        {form ? (
+          <div className="card section-gap">
+            <div className="card-title">{form.id ? 'Edit medication' : 'Add a medication'}</div>
+            <MedFields value={form} onChange={(m) => setForm((f) => ({ ...f, ...m }))} />
+            <div className="row-2">
+              <div className="field">
+                <label>Last fill date</label>
+                <input
+                  className="input"
+                  type="date"
+                  value={form.lastFillDate}
+                  onChange={(e) => setForm((f) => ({ ...f, lastFillDate: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Days supply</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="1"
+                  value={form.daysSupply}
+                  onChange={(e) => setForm((f) => ({ ...f, daysSupply: e.target.value }))}
+                />
+              </div>
             </div>
-            <div className="field">
-              <label>Days supply</label>
-              <input
-                className="input"
-                type="number"
-                min="1"
-                value={form.daysSupply}
-                onChange={(e) => setForm((f) => ({ ...f, daysSupply: e.target.value }))}
-              />
+            <div className="row-2">
+              <div className="field">
+                <label>Warn me this early</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  value={form.alertLeadDays}
+                  onChange={(e) => setForm((f) => ({ ...f, alertLeadDays: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Prescriber (optional)</label>
+                <input
+                  className="input"
+                  value={form.prescriber}
+                  onChange={(e) => setForm((f) => ({ ...f, prescriber: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex section-gap">
+              <button className="btn btn-primary" onClick={save}>
+                {form.id ? 'Save' : 'Add medication'}
+              </button>
+              <button className="btn" onClick={() => setForm(null)}>
+                Cancel
+              </button>
             </div>
           </div>
-          <div className="row-2">
-            <div className="field">
-              <label>Warn me this many days early</label>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                value={form.alertLeadDays}
-                onChange={(e) => setForm((f) => ({ ...f, alertLeadDays: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>Prescriber (optional)</label>
-              <input
-                className="input"
-                value={form.prescriber}
-                onChange={(e) => setForm((f) => ({ ...f, prescriber: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div className="flex" style={{ marginTop: 14 }}>
-            <button className="btn btn-primary" onClick={save}>
-              {form.id ? 'Save' : 'Add medication'}
-            </button>
-            <button className="btn" onClick={() => setForm(null)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button className="btn btn-primary btn-block section-gap" onClick={() => setForm(emptyForm())}>
-          ＋ Add a medication
-        </button>
-      )}
+        ) : (
+          <button className="btn btn-primary btn-block section-gap" onClick={() => setForm(emptyForm())}>
+            ⊕ Add a medication
+          </button>
+        )}
+      </div>
     </div>
   )
 }

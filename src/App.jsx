@@ -9,9 +9,9 @@ import { addDays, daysUntil } from './lib/format.js'
 
 const TABS = [
   { key: 'find', label: 'Find', icon: '🔎' },
-  { key: 'report', label: 'Report', icon: '📍' },
   { key: 'meds', label: 'My meds', icon: '💊' },
-  { key: 'log', label: 'Call log', icon: '📞' },
+  { key: 'report', label: 'Report', icon: '⊕' },
+  { key: 'log', label: 'Calls', icon: '📞' },
 ]
 
 function anyRunningLow(meds) {
@@ -29,18 +29,24 @@ export default function App() {
   const [toast, setToast] = useState(null)
 
   const reloadMeds = () => setMeds(getMeds())
-  const primaryGeneric = meds[0]?.genericName || DEFAULT_MED.generic
   const lowAlert = anyRunningLow(meds)
+
+  const tracked = meds[0]
+  const primaryMed = tracked
+    ? {
+        medName: tracked.medName,
+        dose: tracked.dose,
+        genericName: tracked.genericName,
+        form: tracked.form,
+      }
+    : { medName: DEFAULT_MED.brand, dose: '', genericName: DEFAULT_MED.generic, form: 'generic' }
 
   function go(next, pre = null) {
     setPrefill(pre)
     setView(next)
     window.scrollTo({ top: 0 })
   }
-
-  function showToast(msg) {
-    setToast(msg)
-  }
+  const showToast = (msg) => setToast(msg)
 
   useEffect(() => {
     if (!toast) return
@@ -50,24 +56,14 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="header">
-        <div className="header-row">
-          <div className="logo">
-            Fill<span>Finder</span>
-          </div>
-        </div>
-        <div className="header-sub">
-          Find your meds during the shortage — together. Reports are crowd-sourced; always call to
-          confirm before you drive over.
-        </div>
-      </header>
-
       <main className="main">
-        {view === 'find' && <FindView defaultGeneric={primaryGeneric} onReport={() => go('report')} />}
+        {view === 'find' && <FindView med={primaryMed} onReport={() => go('report')} />}
         {view === 'report' && (
           <ReportView prefill={prefill} onDone={() => go('find')} onToast={showToast} />
         )}
-        {view === 'meds' && <MyMedsView onMedsChange={reloadMeds} />}
+        {view === 'meds' && (
+          <MyMedsView onMedsChange={reloadMeds} onFind={() => go('find')} />
+        )}
         {view === 'log' && (
           <CallLogView onShare={(pre) => go('report', pre)} onToast={showToast} />
         )}

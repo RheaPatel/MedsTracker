@@ -1,174 +1,164 @@
 import { useEffect, useState } from 'react'
-import { fetchReports } from '../api/client.js'
-import { MED_PRESETS, US_STATES, statusMeta, presetByGeneric } from '../lib/meds.js'
-import { relativeTime } from '../lib/format.js'
+import { fetchReports, fetchShortage } from '../api/client.js'
+import { relativeTime, formatFdaDate } from '../lib/format.js'
 import StatusPill from '../components/StatusPill.jsx'
-import ShortageCard from '../components/ShortageCard.jsx'
 
-const SOURCE_LABEL = { called: 'called', in_person: 'in person', app_filled: 'filled Rx here' }
+const DOT = {
+  in_stock: 'var(--dot-in)',
+  limited: 'var(--dot-expect)',
+  expecting: 'var(--dot-expect)',
+  out: 'var(--dot-out)',
+  wouldnt_say: 'var(--dot-muted)',
+}
 
-function ReportCard({ r }) {
+const FDA = {
+  shortage: { color: 'var(--dot-expect)', text: (d) => `FDA: national shortage active${d ? ` — updated ${formatFdaDate(d)}` : ''}` },
+  resolved: { color: 'var(--dot-in)', text: (d) => `FDA: shortage resolved${d ? ` — updated ${formatFdaDate(d)}` : ''}` },
+  none: { color: 'var(--dot-muted)', text: () => 'FDA: no shortage on file' },
+}
+
+function locShort(r) {
+  return [r.city, r.state].filter(Boolean).join(', ')
+}
+
+function Sighting({ r }) {
   return (
-    <div className="card">
-      <div className="card-row">
-        <div className="card-title">{r.pharmacyName}</div>
-        <StatusPill status={r.status} />
-      </div>
-      <div className="meta" style={{ marginTop: 4 }}>
-        {r.medName}
-        {r.dose ? ` · ${r.dose}` : ''}
-        {r.form ? ` · ${r.form}` : ''}
-      </div>
-      <div className="dim" style={{ fontSize: 13, marginTop: 2 }}>
-        {[r.pharmacyAddress, [r.city, r.state].filter(Boolean).join(', '), r.zip]
-          .filter(Boolean)
-          .join(' · ')}
-      </div>
-      {r.shipmentInfo && (
-        <div className="banner banner-info" style={{ marginTop: 8 }}>
-          🚚 {r.shipmentInfo}
+    <>
+      <div className="sighting">
+        <span className="s-dot" style={{ background: DOT[r.status] || 'var(--dot-muted)' }} />
+        <div>
+          <div className="s-name">{r.pharmacyName}</div>
+          <div className="s-meta">
+            {[locShort(r), r.reporterHandle || 'anonymous'].filter(Boolean).join(' · ')}
+          </div>
         </div>
-      )}
-      {r.notes && <p className="dim" style={{ fontSize: 13, marginTop: 8 }}>{r.notes}</p>}
-      <div className="meta" style={{ marginTop: 8 }}>
-        {relativeTime(r.createdAt)} · {SOURCE_LABEL[r.source] || r.source}
-        {r.reporterHandle ? ` · ${r.reporterHandle}` : ''}
+        <div className="s-right">
+          <StatusPill status={r.status} />
+          <div className="s-time">{relativeTime(r.createdAt)}</div>
+        </div>
       </div>
-    </div>
+      {(r.notes || r.shipmentInfo) && (
+        <div className="s-note">“{r.shipmentInfo || r.notes}”{r.reporterHandle ? ` — ${r.reporterHandle}` : ''}</div>
+      )}
+    </>
   )
 }
 
-export default function FindView({ defaultGeneric, onReport }) {
-  const [filters, setFilters] = useState({
-    generic: defaultGeneric || '',
-    form: '',
-    state: '',
-    zip: '',
-    q: '',
-  })
+// Deterministic scatter so pins are stable across renders (we have no lat/lng).
+function pinPos(i) {
+  const xs = [26, 64, 44, 76, 18, 54]
+  const ys = [30, 22, 56, 64, 70, 42]
+  return { left: `${xs[i % xs.length]}%`, top: `${ys[i % ys.length]}%` }
+}
+
+export default function FindView({ med, onReport }) {
+  const [mode, setMode] = useState('list')
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [fda, setFda] = useState(null)
 
-  function load(f = filters) {
+  useEffect(() => {
     setLoading(true)
     setError(null)
-    fetchReports({ ...f, sinceDays: 45 })
-      .then((rs) => setReports(rs))
+    fetchReports({ generic: med.genericName, sinceDays: 45 })
+      .then(setReports)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }
+  }, [med.genericName])
 
-  // initial + whenever the chosen med changes
   useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.generic, filters.form, filters.state, filters.zip])
+    fetchShortage(med.genericName)
+      .then(setFda)
+      .catch(() => setFda(null))
+  }, [med.genericName])
 
-  const set = (patch) => setFilters((f) => ({ ...f, ...patch }))
-  const preset = presetByGeneric(filters.generic)
+  const fdaMeta = fda ? FDA[fda.overall] || FDA.none : null
+  const headline = `${med.medName}${med.dose ? ` ${med.dose}` : ''}`
+  const sub = [med.genericName, med.form === 'brand' ? 'brand' : 'generic'].filter(Boolean).join(' · ')
 
   return (
     <div>
-      <h1 className="view-title">Find it nearby</h1>
-      <p className="view-intro">
-        Recent community reports of pharmacy stock. Newest first — availability changes fast, so
-        treat anything older than a few days as a lead, not a guarantee. Then call to confirm.
-      </p>
-
-      <div className="card section-gap">
-        <div className="field" style={{ marginTop: 0 }}>
-          <label>Medication</label>
-          <select
-            className="select"
-            value={filters.generic}
-            onChange={(e) => set({ generic: e.target.value })}
-          >
-            <option value="">All medications</option>
-            {MED_PRESETS.map((m) => (
-              <option key={m.id} value={m.generic}>
-                {m.brand} ({m.generic})
-              </option>
-            ))}
-          </select>
+      <div className="hero">
+        <div className="hero-top">
+          <span className="wordmark"><span className="dot" />FillFinder</span>
+          <a className="hero-link" href="#" onClick={(e) => e.preventDefault()}>Sign in</a>
         </div>
-        <div className="row-2">
-          <div className="field">
-            <label>State</label>
-            <select className="select" value={filters.state} onChange={(e) => set({ state: e.target.value })}>
-              <option value="">Any</option>
-              {US_STATES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>ZIP</label>
-            <input
-              className="input"
-              inputMode="numeric"
-              placeholder="optional"
-              value={filters.zip}
-              onChange={(e) => set({ zip: e.target.value })}
-            />
-          </div>
+        <h1 className="hero-headline">{headline}</h1>
+        <div className="hero-sub">{sub}</div>
+        <div className="hero-fda">
+          <span className="fda-dot" style={{ background: fdaMeta ? fdaMeta.color : 'var(--dot-muted)' }} />
+          {fda ? fdaMeta.text(fda.updatedAt) : 'Checking FDA shortage status…'}
         </div>
-        <div className="choice-grid" style={{ marginTop: 12 }}>
-          {[
-            { key: '', label: 'Any form' },
-            { key: 'brand', label: 'Brand' },
-            { key: 'generic', label: 'Generic' },
-          ].map((f) => (
-            <button
-              key={f.key}
-              className={`choice ${filters.form === f.key ? 'selected' : ''}`}
-              onClick={() => set({ form: f.key })}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="segmented">
+          <button className={mode === 'list' ? 'on' : ''} onClick={() => setMode('list')}>List</button>
+          <button className={mode === 'map' ? 'on' : ''} onClick={() => setMode('map')}>Map</button>
         </div>
       </div>
 
-      {preset && (
-        <div className="section-gap">
-          <ShortageCard generic={preset.generic} />
-        </div>
-      )}
-
-      <div className="section-gap spread">
-        <span className="meta">
-          {loading ? 'Loading…' : `${reports.length} report${reports.length === 1 ? '' : 's'} · last 45 days`}
-        </span>
-        <button className="btn btn-primary btn-sm" onClick={() => onReport()}>
-          ＋ Report what you found
-        </button>
-      </div>
-
-      {error && (
-        <div className="banner banner-warn section-gap">
-          Couldn’t load reports: {error}. Is the API server running (<code>npm run server</code>)?
-        </div>
-      )}
-
-      <div className="section-gap">
-        {!loading && reports.length === 0 && !error && (
-          <div className="empty">
-            <div className="empty-emoji">🗺️</div>
-            <p>
-              No reports here yet. This map is only as good as what people share — if you call
-              around today, dropping one report helps the next person (and future-you).
-            </p>
-            <button className="btn btn-primary section-gap" onClick={() => onReport()}>
-              Add the first report
-            </button>
+      <div className="pad after-hero">
+        {error && (
+          <div className="banner banner-warn">
+            Couldn’t load sightings: {error}
           </div>
         )}
-        {reports.map((r) => (
-          <ReportCard key={r.id} r={r} />
-        ))}
+
+        {mode === 'list' ? (
+          <>
+            <div className="list-head">
+              <span className="lbl">Recent sightings</span>
+              <span className="sort">Newest</span>
+            </div>
+
+            {loading && <p className="dim section-gap">Loading…</p>}
+
+            {!loading && reports.length === 0 && !error && (
+              <div className="empty">
+                <div className="empty-emoji">🗺️</div>
+                <div className="empty-title">No sightings yet</div>
+                <p>
+                  This map is only as good as what people share. If you call around today, post one
+                  sighting — it helps the next person, and future-you.
+                </p>
+                <button className="btn btn-primary section-gap" onClick={onReport}>
+                  Add the first sighting
+                </button>
+              </div>
+            )}
+
+            {reports.map((r) => (
+              <Sighting key={r.id} r={r} />
+            ))}
+
+            {reports.length > 0 && (
+              <button className="btn btn-primary btn-block section-gap" onClick={onReport}>
+                ⊕ Report what you found
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="map">
+              {reports.map((r, i) => (
+                <div key={r.id} className="map-pin" style={pinPos(i)}>
+                  <span className="pin-dot" style={{ background: DOT[r.status] || 'var(--dot-muted)' }} />
+                  <span className="pin-label">{r.pharmacyName}</span>
+                </div>
+              ))}
+              {reports.length === 0 && (
+                <div className="map-caption" style={{ paddingTop: 150, color: 'var(--cream-faint)' }}>
+                  No sightings to plot yet
+                </div>
+              )}
+            </div>
+            <div className="map-caption">
+              Approximate placement — pins aren’t geocoded yet. Tap List for details.
+            </div>
+            <button className="btn btn-primary btn-block section-gap" onClick={onReport}>
+              ⊕ Report what you found
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
