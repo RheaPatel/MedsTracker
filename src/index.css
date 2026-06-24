@@ -173,6 +173,8 @@ h1, h2, h3, p { margin: 0; }
   border-top: 1px solid var(--line);
 }
 .sighting:first-of-type { border-top: none; }
+.sighting.stale { opacity: 0.62; }
+.s-stale { color: var(--expect); font-weight: 600; }
 .sighting .s-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; }
 .sighting .s-name { font-weight: 700; font-size: 15px; letter-spacing: 0.01em; }
 .sighting .s-meta { color: var(--ink-faint); font-size: 12.5px; margin-top: 3px; }

@@ -24,14 +24,17 @@ function locShort(r) {
 }
 
 function Sighting({ r, dist }) {
+  const ageDays = (Date.now() - new Date(r.createdAt).getTime()) / 86400000
+  const stale = ageDays > 21
   return (
     <>
-      <div className="sighting">
+      <div className={`sighting${stale ? ' stale' : ''}`}>
         <span className="s-dot" style={{ background: DOT[r.status] || 'var(--dot-muted)' }} />
         <div>
           <div className="s-name">{r.pharmacyName}</div>
           <div className="s-meta">
             {[locShort(r), formatDistance(dist), r.reporterHandle || 'anonymous'].filter(Boolean).join(' · ')}
+            {stale && <span className="s-stale"> · likely stale</span>}
           </div>
         </div>
         <div className="s-right">
@@ -60,7 +63,7 @@ export default function FindView({ med, onReport }) {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    fetchReports({ generic: med.genericName, sinceDays: 45 })
+    fetchReports({ generic: med.genericName, sinceDays: 365 })
       .then(setReports)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
