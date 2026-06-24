@@ -431,3 +431,41 @@ h1, h2, h3, p { margin: 0; }
 /* near-me / sort control in the sightings list head */
 .link-sort { background: none; border: none; cursor: pointer; padding: 0; font: inherit; }
 .link-sort:disabled { opacity: 0.6; cursor: default; }
+
+/* ---- call assistant ---- */
+.script-toggle {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.script-body { margin-top: 10px; }
+.script-body p { font-family: var(--serif); font-size: 15px; line-height: 1.5; }
+.script-body p + p { margin-top: 8px; }
+.script-body .dim { font-style: italic; }
+
+.call-card { border-top: 1px solid var(--line); padding: 14px 0; }
+.call-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.call-info { min-width: 0; }
+.call-name { font-weight: 700; font-size: 15px; }
+.call-sub { color: var(--ink-faint); font-size: 12.5px; margin-top: 3px; }
+.call-hours { color: var(--in); font-size: 12px; margin-top: 2px; }
+.call-tel { flex: none; text-decoration: none; }
+.call-acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.call-act {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.call-act:hover { border-color: var(--green); color: var(--green-deep); }
+.call-logged { display: flex; align-items: center; gap: 14px; margin-top: 11px; }

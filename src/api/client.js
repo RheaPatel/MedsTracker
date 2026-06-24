@@ -41,3 +41,12 @@ export async function fetchPlaces({ q, lat, lng, kind = 'pharmacy' }) {
   const { places } = await json(res)
   return places || []
 }
+
+export async function fetchNearby({ lat, lng, radius }) {
+  if (lat == null || lng == null) return []
+  const params = new URLSearchParams({ lat, lng })
+  if (radius) params.set('radius', radius)
+  const res = await fetch(`/api/nearby?${params.toString()}`)
+  const { pharmacies } = await json(res)
+  return pharmacies || []
+}

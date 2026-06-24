@@ -11,6 +11,7 @@ import cors from 'cors'
 import reports from '../api/reports.js'
 import shortage from '../api/shortage.js'
 import places from '../api/places.js'
+import nearby from '../api/nearby.js'
 import { backend } from '../api/_db.js'
 
 const app = express()
@@ -23,6 +24,7 @@ app.use(express.json({ limit: '64kb' }))
 app.all('/api/reports', (req, res) => reports(req, res))
 app.all('/api/shortage', (req, res) => shortage(req, res))
 app.all('/api/places', (req, res) => places(req, res))
+app.all('/api/nearby', (req, res) => nearby(req, res))
 
 app.get('/api/health', (req, res) => res.json({ ok: true, backend }))
 
