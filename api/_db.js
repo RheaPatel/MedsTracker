@@ -47,9 +47,14 @@ function init() {
           shipment_info   text,
           quantity        integer,
           notes           text,
-          source          text
+          source          text,
+          lat             double precision,
+          lng             double precision
         )`
       await sql`CREATE INDEX IF NOT EXISTS reports_lookup ON reports (generic_name, state, created_at DESC)`
+      // Backfill columns on tables created before coordinates existed.
+      await sql`ALTER TABLE reports ADD COLUMN IF NOT EXISTS lat double precision`
+      await sql`ALTER TABLE reports ADD COLUMN IF NOT EXISTS lng double precision`
     } else {
       if (!existsSync(DATA_DIR)) await mkdir(DATA_DIR, { recursive: true })
       if (!existsSync(FILE)) await writeFile(FILE, '[]', 'utf8')
@@ -78,6 +83,8 @@ function rowToReport(r) {
     quantity: r.quantity,
     notes: r.notes,
     source: r.source,
+    lat: r.lat,
+    lng: r.lng,
   }
 }
 
@@ -129,11 +136,11 @@ export async function addReport(r) {
     await sql`
       INSERT INTO reports
         (id, created_at, reporter_id, reporter_handle, med_name, generic_name, form, dose,
-         pharmacy_name, pharmacy_address, city, state, zip, status, shipment_info, quantity, notes, source)
+         pharmacy_name, pharmacy_address, city, state, zip, status, shipment_info, quantity, notes, source, lat, lng)
       VALUES
         (${r.id}, ${r.createdAt}, ${r.reporterId}, ${r.reporterHandle}, ${r.medName}, ${r.genericName},
          ${r.form}, ${r.dose}, ${r.pharmacyName}, ${r.pharmacyAddress}, ${r.city}, ${r.state}, ${r.zip},
-         ${r.status}, ${r.shipmentInfo}, ${r.quantity}, ${r.notes}, ${r.source})`
+         ${r.status}, ${r.shipmentInfo}, ${r.quantity}, ${r.notes}, ${r.source}, ${r.lat}, ${r.lng})`
   } else {
     const all = await readFileStore()
     all.push(r)

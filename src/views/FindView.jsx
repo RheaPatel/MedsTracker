@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { fetchReports, fetchShortage } from '../api/client.js'
 import { relativeTime, formatFdaDate } from '../lib/format.js'
+import { getMyLocation, distanceMiles, formatDistance } from '../lib/geo.js'
 import StatusPill from '../components/StatusPill.jsx'
+import SightingsMap from '../components/SightingsMap.jsx'
 
 const DOT = {
   in_stock: 'var(--dot-in)',
@@ -21,7 +23,7 @@ function locShort(r) {
   return [r.city, r.state].filter(Boolean).join(', ')
 }
 
-function Sighting({ r }) {
+function Sighting({ r, dist }) {
   return (
     <>
       <div className="sighting">
@@ -29,7 +31,7 @@ function Sighting({ r }) {
         <div>
           <div className="s-name">{r.pharmacyName}</div>
           <div className="s-meta">
-            {[locShort(r), r.reporterHandle || 'anonymous'].filter(Boolean).join(' · ')}
+            {[locShort(r), formatDistance(dist), r.reporterHandle || 'anonymous'].filter(Boolean).join(' · ')}
           </div>
         </div>
         <div className="s-right">
@@ -44,19 +46,16 @@ function Sighting({ r }) {
   )
 }
 
-// Deterministic scatter so pins are stable across renders (we have no lat/lng).
-function pinPos(i) {
-  const xs = [26, 64, 44, 76, 18, 54]
-  const ys = [30, 22, 56, 64, 70, 42]
-  return { left: `${xs[i % xs.length]}%`, top: `${ys[i % ys.length]}%` }
-}
-
 export default function FindView({ med, onReport }) {
   const [mode, setMode] = useState('list')
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [fda, setFda] = useState(null)
+  const [coords, setCoords] = useState(null)
+  const [locating, setLocating] = useState(false)
+  const [locErr, setLocErr] = useState(null)
+  const [sort, setSort] = useState('newest')
 
   useEffect(() => {
     setLoading(true)
@@ -72,6 +71,34 @@ export default function FindView({ med, onReport }) {
       .then(setFda)
       .catch(() => setFda(null))
   }, [med.genericName])
+
+  function requestLocation() {
+    setLocating(true)
+    setLocErr(null)
+    getMyLocation()
+      .then((c) => {
+        setCoords(c)
+        setSort('nearest')
+      })
+      .catch((e) => setLocErr(e.message))
+      .finally(() => setLocating(false))
+  }
+
+  // attach distance + apply sort
+  const shown = useMemo(() => {
+    const withDist = reports.map((r) => ({
+      r,
+      dist: coords && r.lat != null ? distanceMiles(coords, { lat: r.lat, lng: r.lng }) : null,
+    }))
+    if (coords && sort === 'nearest') {
+      withDist.sort((a, b) => {
+        if (a.dist == null) return 1
+        if (b.dist == null) return -1
+        return a.dist - b.dist
+      })
+    }
+    return withDist
+  }, [reports, coords, sort])
 
   const fdaMeta = fda ? FDA[fda.overall] || FDA.none : null
   const headline = `${med.medName}${med.dose ? ` ${med.dose}` : ''}`
@@ -97,17 +124,25 @@ export default function FindView({ med, onReport }) {
       </div>
 
       <div className="pad after-hero">
-        {error && (
-          <div className="banner banner-warn">
-            Couldn’t load sightings: {error}
-          </div>
-        )}
+        {error && <div className="banner banner-warn">Couldn’t load sightings: {error}</div>}
+        {locErr && <div className="banner banner-warn section-gap">{locErr}</div>}
 
         {mode === 'list' ? (
           <>
             <div className="list-head">
               <span className="lbl">Recent sightings</span>
-              <span className="sort">Newest</span>
+              {coords ? (
+                <button
+                  className="sort link-sort"
+                  onClick={() => setSort((s) => (s === 'nearest' ? 'newest' : 'nearest'))}
+                >
+                  {sort === 'nearest' ? 'Nearest ↓' : 'Newest ↓'}
+                </button>
+              ) : (
+                <button className="sort link-sort" onClick={requestLocation} disabled={locating}>
+                  {locating ? 'Locating…' : '📍 Near me'}
+                </button>
+              )}
             </div>
 
             {loading && <p className="dim section-gap">Loading…</p>}
@@ -126,8 +161,8 @@ export default function FindView({ med, onReport }) {
               </div>
             )}
 
-            {reports.map((r) => (
-              <Sighting key={r.id} r={r} />
+            {shown.map(({ r, dist }) => (
+              <Sighting key={r.id} r={r} dist={dist} />
             ))}
 
             {reports.length > 0 && (
@@ -138,22 +173,16 @@ export default function FindView({ med, onReport }) {
           </>
         ) : (
           <>
-            <div className="map">
-              {reports.map((r, i) => (
-                <div key={r.id} className="map-pin" style={pinPos(i)}>
-                  <span className="pin-dot" style={{ background: DOT[r.status] || 'var(--dot-muted)' }} />
-                  <span className="pin-label">{r.pharmacyName}</span>
-                </div>
-              ))}
-              {reports.length === 0 && (
-                <div className="map-caption" style={{ paddingTop: 150, color: 'var(--cream-faint)' }}>
-                  No sightings to plot yet
-                </div>
-              )}
-            </div>
+            <SightingsMap sightings={reports} center={coords} />
             <div className="map-caption">
-              Approximate placement — pins aren’t geocoded yet. Tap List for details.
+              {reports.filter((r) => r.lat != null).length} of {reports.length} sightings placed.
+              Tap a pin for details.
             </div>
+            {!coords && (
+              <button className="btn btn-block section-gap" onClick={requestLocation} disabled={locating}>
+                {locating ? 'Locating…' : '📍 Center on my location'}
+              </button>
+            )}
             <button className="btn btn-primary btn-block section-gap" onClick={onReport}>
               ⊕ Report what you found
             </button>

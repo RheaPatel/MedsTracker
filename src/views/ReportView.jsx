@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { submitReport } from '../api/client.js'
 import { STATUSES, SOURCES, US_STATES, DEFAULT_MED } from '../lib/meds.js'
 import { getDeviceId, getHandle, setHandle } from '../lib/identity.js'
+import { getMyLocation } from '../lib/geo.js'
 import MedFields from '../components/MedFields.jsx'
+import PlaceAutocomplete from '../components/PlaceAutocomplete.jsx'
 
 function blankForm(prefill) {
   return {
@@ -20,6 +22,8 @@ function blankForm(prefill) {
     shipmentInfo: prefill?.shipmentInfo || '',
     quantity: '',
     notes: prefill?.notes || '',
+    lat: prefill?.lat ?? null,
+    lng: prefill?.lng ?? null,
   }
 }
 
@@ -29,8 +33,33 @@ export default function ReportView({ prefill, onDone, onToast }) {
   const [shareHandle, setShareHandle] = useState(Boolean(getHandle()))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
+  const [coords, setCoords] = useState(null)
+  const [locating, setLocating] = useState(false)
+  const [locErr, setLocErr] = useState(null)
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }))
+
+  function requestLocation() {
+    setLocating(true)
+    setLocErr(null)
+    getMyLocation()
+      .then(setCoords)
+      .catch((e) => setLocErr(e.message))
+      .finally(() => setLocating(false))
+  }
+
+  function pickPharmacy(p) {
+    setForm((f) => ({
+      ...f,
+      pharmacyName: p.name,
+      pharmacyAddress: p.address || f.pharmacyAddress,
+      city: p.city || f.city,
+      state: p.state || f.state,
+      zip: p.zip || f.zip,
+      lat: p.lat,
+      lng: p.lng,
+    }))
+  }
   const med = { medName: form.medName, genericName: form.genericName, form: form.form, dose: form.dose }
 
   const canSubmit =
@@ -109,12 +138,21 @@ export default function ReportView({ prefill, onDone, onToast }) {
         <div className="card section-gap">
           <div className="field" style={{ marginTop: 0 }}>
             <label>Pharmacy</label>
-            <input
-              className="input"
-              placeholder="e.g. CVS on 5th Ave"
+            <PlaceAutocomplete
               value={form.pharmacyName}
-              onChange={(e) => set({ pharmacyName: e.target.value })}
+              onChange={(v) => set({ pharmacyName: v, lat: null, lng: null })}
+              onPick={pickPharmacy}
+              coords={coords}
+              onUseLocation={requestLocation}
+              locating={locating}
+              placeholder="Start typing — e.g. CVS, Walgreens…"
             />
+            <div className="meta" style={{ marginTop: 6 }}>
+              {form.lat != null
+                ? '✓ Location pinned — this sighting will show on the map.'
+                : 'Pick a result to auto-fill the address and place it on the map.'}
+            </div>
+            {locErr && <div className="banner banner-warn section-gap">{locErr}</div>}
           </div>
           <div className="field">
             <label>Street address (optional)</label>

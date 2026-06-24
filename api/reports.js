@@ -67,6 +67,11 @@ export default async function handler(req, res) {
       let quantity = b.quantity != null ? parseInt(b.quantity, 10) : null
       if (!Number.isFinite(quantity) || quantity < 0 || quantity > 100000) quantity = null
 
+      let lat = b.lat != null ? parseFloat(b.lat) : null
+      let lng = b.lng != null ? parseFloat(b.lng) : null
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90) lat = null
+      if (!Number.isFinite(lng) || lng < -180 || lng > 180) lng = null
+
       const report = {
         id: uuid(),
         createdAt: new Date().toISOString(),
@@ -86,6 +91,8 @@ export default async function handler(req, res) {
         quantity,
         notes: clean(b.notes, 500),
         source,
+        lat,
+        lng,
       }
 
       await addReport(report)

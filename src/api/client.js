@@ -29,3 +29,15 @@ export async function fetchShortage(generic) {
   const res = await fetch(`/api/shortage?generic=${encodeURIComponent(generic)}`)
   return json(res)
 }
+
+export async function fetchPlaces({ q, lat, lng, kind = 'pharmacy' }) {
+  if (!q || q.trim().length < 2) return []
+  const params = new URLSearchParams({ q: q.trim(), kind })
+  if (lat != null && lng != null) {
+    params.set('lat', lat)
+    params.set('lng', lng)
+  }
+  const res = await fetch(`/api/places?${params.toString()}`)
+  const { places } = await json(res)
+  return places || []
+}

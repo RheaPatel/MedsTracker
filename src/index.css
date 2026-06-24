@@ -371,3 +371,61 @@ h1, h2, h3, p { margin: 0; }
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--out);
 }
+
+/* ---- place autocomplete ---- */
+.ac { position: relative; }
+.ac-loc {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.ac-loc.on { border-color: var(--green); color: var(--green-deep); background: rgba(46, 61, 51, 0.08); }
+.ac-loc:disabled { opacity: 0.6; cursor: default; }
+.ac-menu {
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+  overflow-y: auto;
+  max-height: 280px;
+}
+.ac-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  border-top: 1px solid var(--line);
+  padding: 11px 13px;
+  cursor: pointer;
+}
+.ac-item:first-child { border-top: none; }
+.ac-item:hover { background: var(--paper-3); }
+.ac-name { font-weight: 600; font-size: 14px; }
+.ac-sub { color: var(--ink-faint); font-size: 12px; margin-top: 2px; }
+.ac-note { padding: 11px 13px; color: var(--ink-faint); font-size: 13px; }
+
+/* ---- leaflet map ---- */
+.leaflet-map {
+  margin-top: 6px;
+  height: 360px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--paper-3);
+}
+.leaflet-map .leaflet-container { font-family: var(--sans); }
+
+/* near-me / sort control in the sightings list head */
+.link-sort { background: none; border: none; cursor: pointer; padding: 0; font: inherit; }
+.link-sort:disabled { opacity: 0.6; cursor: default; }
