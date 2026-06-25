@@ -15,6 +15,15 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
+      workbox: {
+        // Take control immediately and drop stale precaches so a new deploy
+        // surfaces on the next reload instead of after several.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
+        // Don't serve the SPA shell for API paths (they hit serverless functions).
+        navigateFallbackDenylist: [/^\/api\//],
+      },
       manifest: {
         name: 'FillFinder',
         short_name: 'FillFinder',
