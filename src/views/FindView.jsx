@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchReports, fetchShortage } from '../api/client.js'
 import { relativeTime, formatFdaDate } from '../lib/format.js'
 import { distanceMiles, formatDistance } from '../lib/geo.js'
+import { useIsDesktop } from '../lib/useMedia.js'
 import StatusPill from '../components/StatusPill.jsx'
 import SightingsMap from '../components/SightingsMap.jsx'
 
@@ -50,6 +51,7 @@ function Sighting({ r, dist }) {
 }
 
 export default function FindView({ med, onReport, coords }) {
+  const isDesktop = useIsDesktop()
   const [mode, setMode] = useState('list')
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
@@ -92,6 +94,62 @@ export default function FindView({ med, onReport, coords }) {
   const headline = `${med.medName}${med.dose ? ` ${med.dose}` : ''}`
   const sub = [med.genericName, med.form === 'brand' ? 'brand' : 'generic'].filter(Boolean).join(' · ')
 
+  const reportBtn = (
+    <button className="btn btn-primary btn-block section-gap" onClick={onReport}>
+      ⊕ Report what you found
+    </button>
+  )
+
+  const listBlock = (
+    <>
+      <div className="list-head">
+        <span className="lbl">Recent sightings</span>
+        {coords ? (
+          <button
+            className="sort link-sort"
+            onClick={() => setSort((s) => (s === 'nearest' ? 'newest' : 'nearest'))}
+          >
+            {sort === 'nearest' ? 'Nearest ↓' : 'Newest ↓'}
+          </button>
+        ) : (
+          <span className="sort">Newest</span>
+        )}
+      </div>
+
+      {loading && <p className="dim section-gap">Loading…</p>}
+
+      {!loading && reports.length === 0 && !error && (
+        <div className="empty">
+          <div className="empty-emoji">🗺️</div>
+          <div className="empty-title">No sightings yet</div>
+          <p>
+            This map is only as good as what people share. If you call around today, post one
+            sighting — it helps the next person, and future-you.
+          </p>
+          <button className="btn btn-primary section-gap" onClick={onReport}>
+            Add the first sighting
+          </button>
+        </div>
+      )}
+
+      {shown.map(({ r, dist }) => (
+        <Sighting key={r.id} r={r} dist={dist} />
+      ))}
+
+      {reports.length > 0 && reportBtn}
+    </>
+  )
+
+  const mapOnly = (
+    <>
+      <SightingsMap sightings={reports} center={coords} />
+      <div className="map-caption">
+        {reports.filter((r) => r.lat != null).length} of {reports.length} sightings placed.
+        Tap a pin for details.
+      </div>
+    </>
+  )
+
   return (
     <div>
       <div className="hero">
@@ -114,58 +172,17 @@ export default function FindView({ med, onReport, coords }) {
       <div className="pad after-hero">
         {error && <div className="banner banner-warn">Couldn’t load sightings: {error}</div>}
 
-        {mode === 'list' ? (
-          <>
-            <div className="list-head">
-              <span className="lbl">Recent sightings</span>
-              {coords ? (
-                <button
-                  className="sort link-sort"
-                  onClick={() => setSort((s) => (s === 'nearest' ? 'newest' : 'nearest'))}
-                >
-                  {sort === 'nearest' ? 'Nearest ↓' : 'Newest ↓'}
-                </button>
-              ) : (
-                <span className="sort">Newest</span>
-              )}
-            </div>
-
-            {loading && <p className="dim section-gap">Loading…</p>}
-
-            {!loading && reports.length === 0 && !error && (
-              <div className="empty">
-                <div className="empty-emoji">🗺️</div>
-                <div className="empty-title">No sightings yet</div>
-                <p>
-                  This map is only as good as what people share. If you call around today, post one
-                  sighting — it helps the next person, and future-you.
-                </p>
-                <button className="btn btn-primary section-gap" onClick={onReport}>
-                  Add the first sighting
-                </button>
-              </div>
-            )}
-
-            {shown.map(({ r, dist }) => (
-              <Sighting key={r.id} r={r} dist={dist} />
-            ))}
-
-            {reports.length > 0 && (
-              <button className="btn btn-primary btn-block section-gap" onClick={onReport}>
-                ⊕ Report what you found
-              </button>
-            )}
-          </>
+        {isDesktop ? (
+          <div className="find-split">
+            <div className="find-list">{listBlock}</div>
+            <div className="find-map">{mapOnly}</div>
+          </div>
+        ) : mode === 'list' ? (
+          listBlock
         ) : (
           <>
-            <SightingsMap sightings={reports} center={coords} />
-            <div className="map-caption">
-              {reports.filter((r) => r.lat != null).length} of {reports.length} sightings placed.
-              Tap a pin for details.
-            </div>
-            <button className="btn btn-primary btn-block section-gap" onClick={onReport}>
-              ⊕ Report what you found
-            </button>
+            {mapOnly}
+            {reportBtn}
           </>
         )}
       </div>

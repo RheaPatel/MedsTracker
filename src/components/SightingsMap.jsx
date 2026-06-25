@@ -20,7 +20,9 @@ export default function SightingsMap({ sightings, center }) {
 
   useEffect(() => {
     if (mapRef.current || !elRef.current) return
-    const map = L.map(elRef.current, { zoomControl: true }).setView(
+    // fadeAnimation:false — the tile opacity fade-in gets stuck at 0 when the map
+    // is created before its container reaches final size (desktop sticky pane).
+    const map = L.map(elRef.current, { zoomControl: true, fadeAnimation: false }).setView(
       center ? [center.lat, center.lng] : [39.5, -98.35],
       center ? 11 : 4
     )
@@ -30,7 +32,20 @@ export default function SightingsMap({ sightings, center }) {
     }).addTo(map)
     mapRef.current = map
     layerRef.current = L.layerGroup().addTo(map)
+
+    // Leaflet lays out tiles for the size at init; the container can still be
+    // growing (desktop split pane, fonts loading). Re-measure whenever it resizes,
+    // debounced via rAF so invalidateSize() can't trigger a ResizeObserver loop.
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => map.invalidateSize())
+    })
+    ro.observe(elRef.current)
+
     return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
       map.remove()
       mapRef.current = null
       layerRef.current = null
