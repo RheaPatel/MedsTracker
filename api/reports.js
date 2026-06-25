@@ -72,9 +72,20 @@ export default async function handler(req, res) {
       if (!Number.isFinite(lat) || lat < -90 || lat > 90) lat = null
       if (!Number.isFinite(lng) || lng < -180 || lng > 180) lng = null
 
+      // Optional observed date (you might report something you found yesterday).
+      // Bounded so it can't be garbage: not in the future, not older than ~3 years.
+      let createdAt = new Date().toISOString()
+      if (b.createdAt) {
+        const t = Date.parse(b.createdAt)
+        const now = Date.now()
+        if (Number.isFinite(t) && t <= now + 6e5 && t >= now - 3 * 365 * 864e5) {
+          createdAt = new Date(t).toISOString()
+        }
+      }
+
       const report = {
         id: uuid(),
-        createdAt: new Date().toISOString(),
+        createdAt,
         reporterId: clean(b.reporterId, 64),
         reporterHandle: clean(b.reporterHandle, 40),
         medName,

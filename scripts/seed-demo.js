@@ -90,5 +90,98 @@ async function seed() {
   console.log(`Seeded ${demo.length} demo sightings → ${FILE}`)
 }
 
+// Emit SQL to seed the LIVE Neon DB (paste into the Neon/Vercel query console).
+// Idempotent: clears prior demo rows first. Varied created_at preserves real dates.
+function sqlVal(v) {
+  if (v == null) return 'NULL'
+  if (typeof v === 'number') return String(v)
+  return `'${String(v).replace(/'/g, "''")}'`
+}
+function printSql() {
+  const cols =
+    '(id, created_at, reporter_id, reporter_handle, med_name, generic_name, form, dose, ' +
+    'pharmacy_name, pharmacy_address, city, state, zip, status, shipment_info, quantity, notes, source, lat, lng)'
+  const vals = ROWS.map((r) => {
+    const row = [
+      randomUUID(),
+      isoAgo(r.d, r.h || 0),
+      'seed-demo',
+      r.who || null,
+      r.form === 'brand' ? 'Vyvanse' : 'lisdexamfetamine',
+      'lisdexamfetamine',
+      r.form,
+      r.dose,
+      r.p,
+      r.a,
+      r.c,
+      r.s,
+      r.z,
+      r.status,
+      r.ship || null,
+      null,
+      r.note || null,
+      r.source || 'called',
+      r.lat,
+      r.lng,
+    ]
+    return '  (' + row.map(sqlVal).join(', ') + ')'
+  }).join(',\n')
+  console.log(`DELETE FROM reports WHERE reporter_id = 'seed-demo';`)
+  console.log(`INSERT INTO reports ${cols} VALUES\n${vals};`)
+}
+
+// POST the demo rows to a live API (e.g. the deployed Neon-backed app), preserving
+// their observed dates. Rows are tagged reporter_id:'seed-demo'.
+//   node scripts/seed-demo.js --post https://meds-tracker-theta.vercel.app
+async function postTo(base) {
+  if (!base) {
+    console.error('Usage: node scripts/seed-demo.js --post <baseUrl>')
+    return
+  }
+  const url = base.replace(/\/$/, '') + '/api/reports'
+  let ok = 0
+  let fail = 0
+  for (const r of ROWS) {
+    const body = {
+      createdAt: isoAgo(r.d, r.h || 0),
+      reporterId: 'seed-demo',
+      reporterHandle: r.who || null,
+      medName: r.form === 'brand' ? 'Vyvanse' : 'lisdexamfetamine',
+      genericName: 'lisdexamfetamine',
+      form: r.form,
+      dose: r.dose,
+      pharmacyName: r.p,
+      pharmacyAddress: r.a,
+      city: r.c,
+      state: r.s,
+      zip: r.z,
+      status: r.status,
+      shipmentInfo: r.ship || null,
+      notes: r.note || null,
+      source: r.source || 'called',
+      lat: r.lat,
+      lng: r.lng,
+    }
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) ok++
+      else {
+        fail++
+        console.error('  fail', res.status, r.p)
+      }
+    } catch (e) {
+      fail++
+      console.error('  err', e.message, r.p)
+    }
+  }
+  console.log(`Posted ${ok}/${ROWS.length} to ${url}${fail ? ` (${fail} failed)` : ''}`)
+}
+
 if (process.argv.includes('--clear')) clear()
+else if (process.argv.includes('--sql')) printSql()
+else if (process.argv.includes('--post')) postTo(process.argv[process.argv.indexOf('--post') + 1])
 else seed()
