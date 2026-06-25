@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { submitReport } from '../api/client.js'
 import { STATUSES, SOURCES, US_STATES, DEFAULT_MED } from '../lib/meds.js'
 import { getDeviceId, getHandle, setHandle } from '../lib/identity.js'
-import { getMyLocation } from '../lib/geo.js'
 import MedFields from '../components/MedFields.jsx'
 import PlaceAutocomplete from '../components/PlaceAutocomplete.jsx'
 
@@ -27,48 +26,43 @@ function blankForm(prefill) {
   }
 }
 
-export default function ReportView({ prefill, onDone, onToast }) {
+export default function ReportView({ prefill, coords, onDone, onToast }) {
   const [form, setForm] = useState(() => blankForm(prefill))
   const [handle, setHandleState] = useState(getHandle())
   const [shareHandle, setShareHandle] = useState(Boolean(getHandle()))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
-  const [coords, setCoords] = useState(null)
-  const [locating, setLocating] = useState(false)
-  const [locErr, setLocErr] = useState(null)
+  const [manual, setManual] = useState(false)
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }))
-
-  function requestLocation() {
-    setLocating(true)
-    setLocErr(null)
-    getMyLocation()
-      .then(setCoords)
-      .catch((e) => setLocErr(e.message))
-      .finally(() => setLocating(false))
-  }
 
   function pickPharmacy(p) {
     setForm((f) => ({
       ...f,
       pharmacyName: p.name,
-      pharmacyAddress: p.address || f.pharmacyAddress,
-      city: p.city || f.city,
-      state: p.state || f.state,
-      zip: p.zip || f.zip,
+      pharmacyAddress: p.address || '',
+      city: p.city || '',
+      state: p.state || '',
+      zip: p.zip || '',
       lat: p.lat,
       lng: p.lng,
     }))
+    setManual(false)
   }
+
   const med = { medName: form.medName, genericName: form.genericName, form: form.form, dose: form.dose }
+  const located = form.lat != null
+  const resolved = [form.pharmacyAddress, [form.city, form.state].filter(Boolean).join(', '), form.zip]
+    .filter(Boolean)
+    .join(' · ')
 
   const canSubmit =
-    form.medName.trim() && form.pharmacyName.trim() && (form.city || form.state || form.zip)
+    form.medName.trim() && form.pharmacyName.trim() && (located || form.city || form.state)
 
   async function submit() {
     setErr(null)
     if (!canSubmit) {
-      setErr('Need at least a medication, a pharmacy name, and a location.')
+      setErr('Pick a pharmacy from the list (or add a city/state manually).')
       return
     }
     setBusy(true)
@@ -137,70 +131,56 @@ export default function ReportView({ prefill, onDone, onToast }) {
 
         <div className="card section-gap">
           <div className="field" style={{ marginTop: 0 }}>
-            <label>Pharmacy</label>
+            <label>Which pharmacy?</label>
             <PlaceAutocomplete
               value={form.pharmacyName}
-              onChange={(v) => set({ pharmacyName: v, lat: null, lng: null })}
+              onChange={(v) => set({ pharmacyName: v, pharmacyAddress: '', city: '', state: '', zip: '', lat: null, lng: null })}
               onPick={pickPharmacy}
               coords={coords}
-              onUseLocation={requestLocation}
-              locating={locating}
-              placeholder="Start typing — e.g. CVS, Walgreens…"
+              placeholder="Search a pharmacy — e.g. CVS, Walgreens…"
             />
-            <div className="meta" style={{ marginTop: 6 }}>
-              {form.lat != null
-                ? '✓ Location pinned — this sighting will show on the map.'
-                : 'Pick a result to auto-fill the address and place it on the map.'}
-            </div>
-            {locErr && <div className="banner banner-warn section-gap">{locErr}</div>}
+            {located ? (
+              <div className="picked">📍 {resolved || 'Location pinned'}</div>
+            ) : (
+              <div className="meta" style={{ marginTop: 6 }}>
+                {coords
+                  ? 'Showing pharmacies near you — tap the one you mean.'
+                  : 'Type a pharmacy name and pick it from the list.'}
+              </div>
+            )}
           </div>
-          <div className="field">
-            <label>Street address (optional)</label>
-            <input
-              className="input"
-              placeholder="optional, helps people find the right one"
-              value={form.pharmacyAddress}
-              onChange={(e) => set({ pharmacyAddress: e.target.value })}
-            />
-          </div>
-          <div className="row-2">
-            <div className="field">
-              <label>City</label>
-              <input className="input" value={form.city} onChange={(e) => set({ city: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>State</label>
-              <select className="select" value={form.state} onChange={(e) => set({ state: e.target.value })}>
-                <option value="">—</option>
-                {US_STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="row-2">
-            <div className="field">
-              <label>ZIP</label>
-              <input
-                className="input"
-                inputMode="numeric"
-                value={form.zip}
-                onChange={(e) => set({ zip: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>How did you find out?</label>
-              <select className="select" value={form.source} onChange={(e) => set({ source: e.target.value })}>
-                {SOURCES.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+
+          {!located && (
+            <>
+              <button
+                type="button"
+                className="link-btn"
+                style={{ marginTop: 10 }}
+                onClick={() => setManual((m) => !m)}
+              >
+                {manual ? 'Hide manual entry' : 'Can’t find it? Add the city yourself'}
+              </button>
+              {manual && (
+                <div className="row-2">
+                  <div className="field">
+                    <label>City</label>
+                    <input className="input" value={form.city} onChange={(e) => set({ city: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label>State</label>
+                    <select className="select" value={form.state} onChange={(e) => set({ state: e.target.value })}>
+                      <option value="">—</option>
+                      {US_STATES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className="card section-gap">
@@ -214,12 +194,18 @@ export default function ReportView({ prefill, onDone, onToast }) {
             />
           </div>
           <div className="field">
+            <label>How did you find out?</label>
+            <select className="select" value={form.source} onChange={(e) => set({ source: e.target.value })}>
+              {SOURCES.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
             <label className="flex" style={{ cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
-              <input
-                type="checkbox"
-                checked={shareHandle}
-                onChange={(e) => setShareHandle(e.target.checked)}
-              />
+              <input type="checkbox" checked={shareHandle} onChange={(e) => setShareHandle(e.target.checked)} />
               Show a display name on this sighting
             </label>
             {shareHandle && (

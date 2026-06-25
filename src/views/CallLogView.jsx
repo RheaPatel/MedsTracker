@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getCalls, addCall, deleteCall, getMeds } from '../db/localStore.js'
 import { STATUSES, US_STATES, DEFAULT_MED, statusMeta } from '../lib/meds.js'
 import { formatDate, todayISODate } from '../lib/format.js'
-import { getMyLocation, formatDistance } from '../lib/geo.js'
+import { formatDistance } from '../lib/geo.js'
 import { fetchNearby } from '../api/client.js'
 import StatusPill from '../components/StatusPill.jsx'
 
@@ -33,37 +33,34 @@ function emptyEntry(med) {
 
 const pkey = (p) => `${p.name}|${p.lat.toFixed(4)},${p.lng.toFixed(4)}`
 
-export default function CallLogView({ onShare, onToast }) {
+export default function CallLogView({ coords, onShare, onToast }) {
   const med = trackedMed()
   const [calls, setCalls] = useState(() => getCalls())
   const [entry, setEntry] = useState(null)
   const [scriptOpen, setScriptOpen] = useState(true)
 
-  const [coords, setCoords] = useState(null)
   const [nearby, setNearby] = useState([])
-  const [locating, setLocating] = useState(false)
   const [loadingNearby, setLoadingNearby] = useState(false)
   const [nearbyErr, setNearbyErr] = useState(null)
   const [logged, setLogged] = useState({})
 
   const refresh = () => setCalls(getCalls())
 
-  function findNearby() {
-    setLocating(true)
+  function loadNearby() {
+    if (!coords) return
+    setLoadingNearby(true)
     setNearbyErr(null)
-    getMyLocation()
-      .then((c) => {
-        setCoords(c)
-        setLoadingNearby(true)
-        return fetchNearby({ lat: c.lat, lng: c.lng })
-      })
+    fetchNearby({ lat: coords.lat, lng: coords.lng })
       .then((ps) => setNearby(ps))
       .catch((e) => setNearbyErr(e.message))
-      .finally(() => {
-        setLocating(false)
-        setLoadingNearby(false)
-      })
+      .finally(() => setLoadingNearby(false))
   }
+
+  // Auto-load the to-call list as soon as we know where the user is.
+  useEffect(() => {
+    loadNearby()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coords?.lat, coords?.lng])
 
   function quickLog(p, status) {
     addCall({
@@ -166,7 +163,7 @@ export default function CallLogView({ onShare, onToast }) {
         <div className="list-head section-gap">
           <span className="lbl">Pharmacies near you</span>
           {coords && (
-            <button className="link-sort" onClick={findNearby} disabled={loadingNearby}>
+            <button className="link-sort" onClick={loadNearby} disabled={loadingNearby}>
               {loadingNearby ? 'Refreshing…' : 'Refresh'}
             </button>
           )}
@@ -174,16 +171,13 @@ export default function CallLogView({ onShare, onToast }) {
 
         {nearbyErr && <div className="banner banner-warn">{nearbyErr}</div>}
 
-        {!coords && !locating && (
-          <div className="card">
-            <p className="dim">Find the pharmacies around you to start working down a call list.</p>
-            <button className="btn btn-primary btn-block section-gap" onClick={findNearby}>
-              📍 Find pharmacies near me
-            </button>
-          </div>
+        {!coords && (
+          <p className="dim">
+            Turn on location to see the pharmacies around you. Otherwise, log a call manually below.
+          </p>
         )}
 
-        {(locating || loadingNearby) && <p className="dim">Finding pharmacies near you…</p>}
+        {loadingNearby && <p className="dim">Finding pharmacies near you…</p>}
 
         {coords && !loadingNearby && nearby.length === 0 && !nearbyErr && (
           <p className="dim">No pharmacies found nearby. Try the manual log below.</p>

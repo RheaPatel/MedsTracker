@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchReports, fetchShortage } from '../api/client.js'
 import { relativeTime, formatFdaDate } from '../lib/format.js'
-import { getMyLocation, distanceMiles, formatDistance } from '../lib/geo.js'
+import { distanceMiles, formatDistance } from '../lib/geo.js'
 import StatusPill from '../components/StatusPill.jsx'
 import SightingsMap from '../components/SightingsMap.jsx'
 
@@ -49,16 +49,13 @@ function Sighting({ r, dist }) {
   )
 }
 
-export default function FindView({ med, onReport }) {
+export default function FindView({ med, onReport, coords }) {
   const [mode, setMode] = useState('list')
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [fda, setFda] = useState(null)
-  const [coords, setCoords] = useState(null)
-  const [locating, setLocating] = useState(false)
-  const [locErr, setLocErr] = useState(null)
-  const [sort, setSort] = useState('newest')
+  const [sort, setSort] = useState('nearest')
 
   useEffect(() => {
     setLoading(true)
@@ -74,18 +71,6 @@ export default function FindView({ med, onReport }) {
       .then(setFda)
       .catch(() => setFda(null))
   }, [med.genericName])
-
-  function requestLocation() {
-    setLocating(true)
-    setLocErr(null)
-    getMyLocation()
-      .then((c) => {
-        setCoords(c)
-        setSort('nearest')
-      })
-      .catch((e) => setLocErr(e.message))
-      .finally(() => setLocating(false))
-  }
 
   // attach distance + apply sort
   const shown = useMemo(() => {
@@ -128,7 +113,6 @@ export default function FindView({ med, onReport }) {
 
       <div className="pad after-hero">
         {error && <div className="banner banner-warn">Couldn’t load sightings: {error}</div>}
-        {locErr && <div className="banner banner-warn section-gap">{locErr}</div>}
 
         {mode === 'list' ? (
           <>
@@ -142,9 +126,7 @@ export default function FindView({ med, onReport }) {
                   {sort === 'nearest' ? 'Nearest ↓' : 'Newest ↓'}
                 </button>
               ) : (
-                <button className="sort link-sort" onClick={requestLocation} disabled={locating}>
-                  {locating ? 'Locating…' : '📍 Near me'}
-                </button>
+                <span className="sort">Newest</span>
               )}
             </div>
 
@@ -181,11 +163,6 @@ export default function FindView({ med, onReport }) {
               {reports.filter((r) => r.lat != null).length} of {reports.length} sightings placed.
               Tap a pin for details.
             </div>
-            {!coords && (
-              <button className="btn btn-block section-gap" onClick={requestLocation} disabled={locating}>
-                {locating ? 'Locating…' : '📍 Center on my location'}
-              </button>
-            )}
             <button className="btn btn-primary btn-block section-gap" onClick={onReport}>
               ⊕ Report what you found
             </button>

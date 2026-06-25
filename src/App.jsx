@@ -6,6 +6,7 @@ import CallLogView from './views/CallLogView.jsx'
 import { getMeds } from './db/localStore.js'
 import { DEFAULT_MED } from './lib/meds.js'
 import { addDays, daysUntil } from './lib/format.js'
+import { getMyLocation, getCachedCoords, setCachedCoords } from './lib/geo.js'
 
 const TABS = [
   { key: 'find', label: 'Find', icon: '🔎' },
@@ -27,6 +28,18 @@ export default function App() {
   const [prefill, setPrefill] = useState(null)
   const [meds, setMeds] = useState(() => getMeds())
   const [toast, setToast] = useState(null)
+  const [coords, setCoords] = useState(() => getCachedCoords())
+
+  // Ask for location up front so the map + nearby lists are accurate by default
+  // (no button to hunt for). Cached so it's instant on the next visit.
+  useEffect(() => {
+    getMyLocation()
+      .then((c) => {
+        setCoords(c)
+        setCachedCoords(c)
+      })
+      .catch(() => {})
+  }, [])
 
   const reloadMeds = () => setMeds(getMeds())
   const lowAlert = anyRunningLow(meds)
@@ -57,15 +70,15 @@ export default function App() {
   return (
     <div className="app">
       <main className="main">
-        {view === 'find' && <FindView med={primaryMed} onReport={() => go('report')} />}
+        {view === 'find' && <FindView med={primaryMed} coords={coords} onReport={() => go('report')} />}
         {view === 'report' && (
-          <ReportView prefill={prefill} onDone={() => go('find')} onToast={showToast} />
+          <ReportView prefill={prefill} coords={coords} onDone={() => go('find')} onToast={showToast} />
         )}
         {view === 'meds' && (
           <MyMedsView onMedsChange={reloadMeds} onFind={() => go('find')} />
         )}
         {view === 'log' && (
-          <CallLogView onShare={(pre) => go('report', pre)} onToast={showToast} />
+          <CallLogView coords={coords} onShare={(pre) => go('report', pre)} onToast={showToast} />
         )}
       </main>
 

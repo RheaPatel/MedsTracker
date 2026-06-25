@@ -42,3 +42,25 @@ export function formatDistance(mi) {
   if (mi < 10) return `${mi.toFixed(1)} mi`
   return `${Math.round(mi)} mi`
 }
+
+// Cache the last known location so the map/distances are instant on reload while
+// we refresh in the background.
+const COORDS_KEY = 'ff_coords'
+
+export function getCachedCoords() {
+  try {
+    const c = JSON.parse(localStorage.getItem(COORDS_KEY))
+    if (c && typeof c.lat === 'number' && typeof c.lng === 'number') return c
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+export function setCachedCoords(c) {
+  try {
+    localStorage.setItem(COORDS_KEY, JSON.stringify({ lat: c.lat, lng: c.lng }))
+  } catch {
+    /* ignore */
+  }
+}

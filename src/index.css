@@ -416,6 +416,14 @@ h1, h2, h3, p { margin: 0; }
 .ac-name { font-weight: 600; font-size: 14px; }
 .ac-sub { color: var(--ink-faint); font-size: 12px; margin-top: 2px; }
 .ac-note { padding: 11px 13px; color: var(--ink-faint); font-size: 13px; }
+.picked {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--green-deep);
+  background: rgba(46, 61, 51, 0.07);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+}
 
 /* ---- leaflet map ---- */
 .leaflet-map {
