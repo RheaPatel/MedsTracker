@@ -29,6 +29,7 @@ export default function SightingsMap({ sightings, center }) {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap contributors',
+      crossOrigin: 'anonymous',
     }).addTo(map)
     mapRef.current = map
     layerRef.current = L.layerGroup().addTo(map)
